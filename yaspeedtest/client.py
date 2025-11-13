@@ -3,7 +3,7 @@ import statistics
 import asyncio
 import math
 import aiohttp
-from typing import Tuple, Optional
+from typing import Tuple
 
 from yaspeedtest.types import YandexAPIError, ProbesResponse, SpeedResult, ProbeModel
 
