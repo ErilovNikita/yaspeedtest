@@ -1,7 +1,7 @@
 import time
 import statistics
 import asyncio
-import math
+from warnings import deprecated
 import aiohttp
 from typing import Tuple
 
@@ -89,6 +89,7 @@ class YaSpeedTest:
             except Exception as e:
                 raise YandexAPIError(f"Failed to start process: {e}") from e
 
+    @deprecated("not stable enough, use measure_download_peak instead")
     async def measure_download(self, url: str, timeout: int = 10) -> Tuple[float, int]:
         """
         Download a file from the specified URL and measure the transfer performance.
@@ -161,6 +162,7 @@ class YaSpeedTest:
             return float('inf')
         return statistics.median(times)
     
+    @deprecated("not stable enough, use measure_upload_peak instead")
     async def measure_upload(self, url: str, size: int, timeout: int = None) -> Tuple[float, int]:
         """
         Perform an asynchronous file upload to a given URL.
@@ -213,6 +215,104 @@ class YaSpeedTest:
         t1 = time.perf_counter()
         return t1 - t0, size
     
+    async def measure_download_peak(self, url: str, timeout: int = 60) -> float:
+        """
+        Measure the peak download speed from a given URL.
+
+        This method downloads a file from the specified URL and calculates the
+        peak network throughput over 1-second intervals, rather than averaging
+        the entire download duration. This mimics the behavior of many speed
+        testing tools that report short-term peak speeds.
+
+        Parameters
+        ----------
+        url : str
+            The URL of the file to download for the speed test.
+        timeout : int, optional
+            Connection timeout in seconds. Default is 60.
+
+        Returns
+        -------
+        float
+            The peak download speed measured in megabits per second (Mbps).
+
+        """
+        timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=60)
+        peak_mbps = 0.0
+        buffer_bytes = 0
+        start_interval = time.perf_counter()
+
+        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    return 0.0
+                async for chunk in resp.content.iter_chunked(64 * 1024):
+                    buffer_bytes += len(chunk)
+                    now = time.perf_counter()
+                    if now - start_interval >= 1.0:  # every 1 second
+                        mbps = buffer_bytes * 8 / (now - start_interval) / 1_000_000
+                        peak_mbps = max(peak_mbps, mbps)
+                        buffer_bytes = 0
+                        start_interval = now
+                # final interval
+                if buffer_bytes > 0:
+                    now = time.perf_counter()
+                    mbps = buffer_bytes * 8 / (now - start_interval) / 1_000_000
+                    peak_mbps = max(peak_mbps, mbps)
+        return peak_mbps
+
+    async def measure_upload_peak(self, url: str, size: int, timeout: int = 60) -> float:
+        """
+        Measure the peak upload speed to a given URL.
+
+        This method uploads a specified number of bytes to the given URL and
+        calculates the peak network throughput over 1-second intervals. 
+        This provides a realistic measure of the fastest sustained upload
+        observed during the test.
+
+        Parameters
+        ----------
+        url : str
+            The URL endpoint to upload the data to.
+        size : int
+            The number of bytes to upload for the speed test.
+        timeout : int, optional
+            Connection timeout in seconds. Default is 60.
+
+        Returns
+        -------
+        float
+            The peak upload speed measured in megabits per second (Mbps).
+        """
+        chunk = b"\0" * (64 * 1024)
+        chunks = size // len(chunk)
+        tail = size % len(chunk)
+
+        async def gen():
+            for _ in range(chunks):
+                yield chunk
+            if tail:
+                yield b"\0" * tail
+
+        timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=120)
+        peak_mbps = 0.0
+        buffer_bytes = 0
+        start_interval = time.perf_counter()
+
+        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
+            async with session.post(url, data=gen()) as resp:
+                if resp.status != 200:
+                    return 0.0
+                await resp.read()
+                # upload is streamed so we measure chunks
+                now = time.perf_counter()
+                elapsed = now - start_interval
+                buffer_bytes += size  # total uploaded
+                if elapsed >= 1.0:
+                    mbps = buffer_bytes * 8 / elapsed / 1_000_000
+                    peak_mbps = max(peak_mbps, mbps)
+        return peak_mbps
+
     async def run(self, attempts: int = 5) -> SpeedResult:
         """Main async entry point to measure internet speed.
         
@@ -258,10 +358,9 @@ class YaSpeedTest:
         async def download_task(probe:ProbeModel):
             speeds = []
             for _ in range(attempts):
-                secs, b = await self.measure_download(probe.url, probe.timeout)
-                if math.isfinite(secs) and b > 0:
-                    speeds.append(self.__to_mbps(b, secs))
-            return max(speeds) if speeds else 0.0
+                mbps = await self.measure_download_peak(probe.url, probe.timeout)
+                speeds.append(mbps)
+            return max(speeds) if mbps else 0.0
 
         download_speeds = await asyncio.gather(*(download_task(probe) for probe in alternating(download_probes)))
         download_mbps = max(download_speeds) if download_speeds else 0.0
@@ -272,9 +371,8 @@ class YaSpeedTest:
                 return 0.0
             speeds = []
             for _ in range(attempts):
-                secs, sent = await self.measure_upload(probe.url, probe.size, probe.timeout)
-                if math.isfinite(secs) and sent > 0:
-                    speeds.append(self.__to_mbps(sent, secs))
+                mbps = await self.measure_upload_peak(probe.url, probe.size, probe.timeout)
+                speeds.append(mbps)
             return max(speeds) if speeds else 0.0
 
         upload_speeds = await asyncio.gather(*(upload_task(probe) for probe in upload_probes))
