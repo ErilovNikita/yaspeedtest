@@ -2,6 +2,14 @@
 requires = ["setuptools>=65", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["."]
+
+[project.urls]
+Homepage = "https://github.com/ErilovNikita/yaspeedtest"
+Repository = "https://github.com/ErilovNikita/yaspeedtest"
+Documentation = "https://github.com/ErilovNikita/yaspeedtest/README.md"
+
 [project]
 name = "yaspeedtest"
 license = { text = "Apache-2.0" }
@@ -26,6 +34,3 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14"
 ]
-
-[tool.setuptools.packages.find]
-where = ["."]
