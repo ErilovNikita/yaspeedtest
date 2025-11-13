@@ -213,7 +213,7 @@ class YaSpeedTest:
         t1 = time.perf_counter()
         return t1 - t0, size
     
-    async def run(self) -> SpeedResult:
+    async def run(self, attempts: int = 5) -> SpeedResult:
         """Main async entry point to measure internet speed.
         
         Steps:
@@ -227,21 +227,29 @@ class YaSpeedTest:
         upload_probes = self.probes.upload.probes
 
         # --- measure latency in parallel ---
-        async def ping_task(probe:ProbeModel):
-            try:
-                ping_ms = await self.measure_latency(probe.url, probe.timeout)
-            except Exception:
-                ping_ms = float('inf')
-            return ping_ms
+        async def ping_task(probe: ProbeModel):
+            results = []
+            for _ in range(attempts):
+                try:
+                    ping_ms = await self.measure_latency(probe.url, probe.timeout)
+                except Exception:
+                    ping_ms = float('inf')
+                results.append(ping_ms)
+            results.sort()
+            median = results[len(results) // 2] if results else float('inf')
+            return median
 
         latency_results = await asyncio.gather(*(ping_task(probe) for probe in latency_probes))
-        latency_ms = max(latency_results) if latency_results else 0.0
+        latency_ms = min(latency_results) if latency_results else 0.0
 
         # --- measure downloads in parallel ---
         async def download_task(probe:ProbeModel):
-            secs, b = await self.measure_download(probe.url, probe.timeout)
-            mbps = self.__to_mbps(b, secs) if math.isfinite(secs) and b > 0 else 0.0
-            return mbps
+            speeds = []
+            for _ in range(attempts):
+                secs, b = await self.measure_download(probe.url, probe.timeout)
+                if math.isfinite(secs) and b > 0:
+                    speeds.append(self.__to_mbps(b, secs))
+            return max(speeds) if speeds else 0.0
 
         download_speeds = await asyncio.gather(*(download_task(probe) for probe in download_probes))
         download_mbps = max(download_speeds) if download_speeds else 0.0
@@ -250,8 +258,12 @@ class YaSpeedTest:
         async def upload_task(probe:ProbeModel):
             if not probe.size or probe.size <= 0:
                 return 0.0
-            secs, sent = await self.measure_upload(probe.url, probe.size, probe.timeout)
-            return self.__to_mbps(sent, secs) if math.isfinite(secs) and sent > 0 else 0.0
+            speeds = []
+            for _ in range(attempts):
+                secs, sent = await self.measure_upload(probe.url, probe.size, probe.timeout)
+                if math.isfinite(secs) and sent > 0:
+                    speeds.append(self.__to_mbps(sent, secs))
+            return max(speeds) if speeds else 0.0
 
         upload_speeds = await asyncio.gather(*(upload_task(probe) for probe in upload_probes))
         upload_mbps = max(upload_speeds) if upload_speeds else 0.0
