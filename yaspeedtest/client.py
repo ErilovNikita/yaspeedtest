@@ -253,9 +253,6 @@ class YaSpeedTest:
                 if i < len(small):
                     result.append(small[i])
             return result
-        
-        download_ordered = alternating(download_probes)
-        upload_ordered = alternating(upload_probes)
 
         # --- measure downloads in parallel ---
         async def download_task(probe:ProbeModel):
@@ -266,7 +263,7 @@ class YaSpeedTest:
                     speeds.append(self.__to_mbps(b, secs))
             return max(speeds) if speeds else 0.0
 
-        download_speeds = await asyncio.gather(*(download_task(probe) for probe in download_ordered))
+        download_speeds = await asyncio.gather(*(download_task(probe) for probe in alternating(download_probes)))
         download_mbps = max(download_speeds) if download_speeds else 0.0
 
         # --- measure uploads in parallel ---
@@ -280,7 +277,7 @@ class YaSpeedTest:
                     speeds.append(self.__to_mbps(sent, secs))
             return max(speeds) if speeds else 0.0
 
-        upload_speeds = await asyncio.gather(*(upload_task(probe) for probe in upload_ordered))
+        upload_speeds = await asyncio.gather(*(upload_task(probe) for probe in upload_probes))
         upload_mbps = max(upload_speeds) if upload_speeds else 0.0
 
         return SpeedResult(
