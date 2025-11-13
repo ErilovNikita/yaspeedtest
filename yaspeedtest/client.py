@@ -1,7 +1,6 @@
 import time
 import statistics
 import asyncio
-from warnings import deprecated
 import aiohttp
 from typing import Tuple
 
@@ -89,7 +88,7 @@ class YaSpeedTest:
             except Exception as e:
                 raise YandexAPIError(f"Failed to start process: {e}") from e
 
-    @deprecated("not stable enough, use measure_download_peak instead")
+    # @deprecated("not stable enough, use measure_download_peak instead")
     async def measure_download(self, url: str, timeout: int = 10) -> Tuple[float, int]:
         """
         Download a file from the specified URL and measure the transfer performance.
@@ -162,7 +161,7 @@ class YaSpeedTest:
             return float('inf')
         return statistics.median(times)
     
-    @deprecated("not stable enough, use measure_upload_peak instead")
+    # @deprecated("not stable enough, use measure_upload_peak instead")
     async def measure_upload(self, url: str, size: int, timeout: int = None) -> Tuple[float, int]:
         """
         Perform an asynchronous file upload to a given URL.
