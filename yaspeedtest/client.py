@@ -1,10 +1,11 @@
 import time
 import statistics
 import asyncio
+import math
 import aiohttp
-from typing import Tuple
+from typing import Tuple, Optional
 
-from yaspeedtest.types import YandexAPIError, ProbesResponse
+from yaspeedtest.types import YandexAPIError, ProbesResponse, SpeedResult, ProbeModel
 
 class YaSpeedTest:
     DEFAULT_HEADERS = {
@@ -33,6 +34,22 @@ class YaSpeedTest:
         self = cls()
         await self.__start_proccess()
         return self
+
+    def __to_mbps(self, bytes_count: int, seconds: float) -> float:
+        """
+        Convert a byte count and duration in seconds into megabits per second (Mbps).
+
+        Args:
+            bytes_count (int): Number of bytes transferred.
+            seconds (float): Duration of the transfer in seconds.
+
+        Returns:
+            float: Transfer speed in Mbps. Returns 0 if seconds <= 0.
+        """
+        if seconds <= 0:
+            return 0.0
+        bits = bytes_count * 8
+        return bits / seconds / 1_000_000
 
     async def __start_proccess(self) -> None:
         """
@@ -195,3 +212,52 @@ class YaSpeedTest:
                 return float('inf'), 0
         t1 = time.perf_counter()
         return t1 - t0, size
+    
+    async def run(self) -> SpeedResult:
+        """Main async entry point to measure internet speed.
+        
+        Steps:
+        1. Fetch probes.
+        2. Measure latency for available latency probes in parallel.
+        3. Run download and upload probes against that lid in parallel.
+        4. Return SpeedResult with ping, download and upload Mbps.
+        """
+        latency_probes = self.probes.latency.probes
+        download_probes = self.probes.download.probes
+        upload_probes = self.probes.upload.probes
+
+        # --- measure latency in parallel ---
+        async def ping_task(probe:ProbeModel):
+            try:
+                ping_ms = await self.measure_latency(probe.url, probe.timeout)
+            except Exception:
+                ping_ms = float('inf')
+            return ping_ms
+
+        latency_results = await asyncio.gather(*(ping_task(probe) for probe in latency_probes))
+        latency_ms = max(latency_results) if latency_results else 0.0
+
+        # --- measure downloads in parallel ---
+        async def download_task(probe:ProbeModel):
+            secs, b = await self.measure_download(probe.url, probe.timeout)
+            mbps = self.__to_mbps(b, secs) if math.isfinite(secs) and b > 0 else 0.0
+            return mbps
+
+        download_speeds = await asyncio.gather(*(download_task(probe) for probe in download_probes))
+        download_mbps = max(download_speeds) if download_speeds else 0.0
+
+        # --- measure uploads in parallel ---
+        async def upload_task(probe:ProbeModel):
+            if not probe.size or probe.size <= 0:
+                return 0.0
+            secs, sent = await self.measure_upload(probe.url, probe.size, probe.timeout)
+            return self.__to_mbps(sent, secs) if math.isfinite(secs) and sent > 0 else 0.0
+
+        upload_speeds = await asyncio.gather(*(upload_task(probe) for probe in upload_probes))
+        upload_mbps = max(upload_speeds) if upload_speeds else 0.0
+
+        return SpeedResult(
+            ping_ms=latency_ms,
+            download_mbps=download_mbps,
+            upload_mbps=upload_mbps
+        )
