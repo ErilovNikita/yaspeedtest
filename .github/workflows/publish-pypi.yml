@@ -1,0 +1,69 @@
+name: 🚀 Publish Python Package
+
+on:
+  workflow_run:
+    workflows: ["🧪 Run Tests"]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  release-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check PyPI version
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "Current version: $VERSION"
+          if python -c "import requests; r=requests.get('https://pypi.org/pypi/yaspeedtest/json').json(); assert '$VERSION' not in r['releases']"; then
+              echo "Version available, continue publishing."
+          else
+              echo "Version $VERSION already exists on PyPI. Skipping publish."
+              exit 78  # exit with 78 skips job in GitHub Actions
+          fi
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+  pypi-publish:
+    runs-on: ubuntu-latest
+
+    needs:
+      - release-build
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/yaspeedtest
+
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v5
+        with:
+          name: release-dists
+          path: dist/
+
+      - name: Publish release distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
