@@ -56,7 +56,7 @@ class YaSpeedTest:
             self.mid = self.probes.mid
             self.lid = self.probes.lid
 
-    async def measure_download(self, url: str, timeout: int = 60) -> Tuple[float, int]:
+    async def measure_download(self, url: str, timeout: int = 10) -> Tuple[float, int]:
         """
         Download a file from the specified URL and measure the transfer performance.
 
@@ -73,6 +73,9 @@ class YaSpeedTest:
                 - Elapsed time in seconds (float). Returns `float('inf')` if download fails.
                 - Total bytes downloaded (int). Returns 0 if download fails.
         """
+        if not timeout:
+            timeout = 10
+
         timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=60)
 
         total_bytes = 0
@@ -89,7 +92,7 @@ class YaSpeedTest:
         t1 = time.perf_counter()
         return t1 - t0, total_bytes
     
-    async def measure_latency(self, url: str, attempts: int = 5) -> float:
+    async def measure_latency(self, url: str, timeout: int = None, attempts: int = 5) -> float:
         """
         Measure the network latency (ping) to a given URL.
 
@@ -104,8 +107,12 @@ class YaSpeedTest:
             float: The median ping in milliseconds. Returns a large value if all attempts fail.
         """
         times = []
-        timeout = aiohttp.ClientTimeout(total=10, connect=5, sock_read=10)
-        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout) as session:
+
+        if not timeout: 
+            timeout = 10
+
+        timeout_config = aiohttp.ClientTimeout(total=10, connect=timeout, sock_read=10)
+        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
             for _ in range(attempts):
                 t0 = time.perf_counter()
                 try:
@@ -120,3 +127,55 @@ class YaSpeedTest:
         if not times:
             return float('inf')
         return statistics.median(times)
+    
+    async def measure_upload(self, url: str, size: int, timeout: int = None) -> Tuple[float, int]:
+        """
+        Perform an asynchronous file upload to a given URL.
+
+        This method uploads a payload of the specified size using a streamed generator
+        to avoid allocating large buffers in memory. It measures the total time taken
+        for the upload and returns it along with the number of bytes uploaded.
+
+        Parameters:
+            url (str): The endpoint to which the data will be uploaded.
+            size (int): The total size of the data to upload, in bytes.
+            timeout (int, optional): Maximum time in seconds to establish the connection.
+                                    Defaults to 10 seconds if not provided.
+
+        Returns:
+            Tuple[float, int]: A tuple containing:
+                - The total time taken to upload the data, in seconds.
+                - The number of bytes successfully uploaded.
+                Returns `(float('inf'), 0)` in case of an error or failed upload.
+
+        Notes:
+            - Uses a 64 KB chunked stream for efficient memory usage.
+            - The `aiohttp.ClientSession` is created per call to ensure isolated headers
+            and timeout settings.
+            - This is an asynchronous method and should be awaited.
+        """
+        if not timeout: 
+            timeout = 10
+
+        chunk = b"\0" * (64 * 1024)
+        chunks = size // len(chunk)
+        tail = size % len(chunk)
+
+        async def gen():
+            for _ in range(chunks):
+                yield chunk
+            if tail:
+                yield b"\0" * tail
+
+        timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=120)
+        t0 = time.perf_counter()
+        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
+            try:
+                async with session.post(url, data=gen()) as r:
+                    if r.status != 200:
+                        return float('inf'), 0
+                    await r.read()
+            except Exception:
+                return float('inf'), 0
+        t1 = time.perf_counter()
+        return t1 - t0, size
