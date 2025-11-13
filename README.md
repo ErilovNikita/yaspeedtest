@@ -5,7 +5,7 @@ YaSpeedTest — это **асинхронный клиент Python**, кото�
 [![PyPI Version](https://img.shields.io/pypi/pyversions/yaspeedtest?logo=python&label=Python)](https://pypi.org/project/yaspeedtest)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/yaspeedtest?logo=pypi&label=PyPI%20-%20Downloads)](https://pypi.org/project/yaspeedtest)
 
-![preview](docs/preview.png)
+![preview](https://github.com/ErilovNikita/yaspeedtest/blob/main/docs/preview.png?raw=true)
 
 > [!WARNING]  
 > Данная библиотека НЕ является официальной, и не пытается ей казаться. Данная библиотека разрабатывается исключительно в личных интересах, и использует только общедоступные endpoint'ы.
