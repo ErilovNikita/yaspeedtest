@@ -1,10 +1,26 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "yaspeedtest"
 version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.11"
 dependencies = [
     "requests>=2.28",
+    "aiohttp==3.13.2",
+    "asyncio==4.0.0",
+    "pydantic>=2.11.9"
+]
+authors = [
+    { name = "Nikita Erilov", email = "minitwiks@gmail.com" }
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
 ]
 
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+[tool.setuptools.packages.find]
+where = ["."]
