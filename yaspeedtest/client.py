@@ -1,5 +1,3 @@
-"""API client for yandex.ru/internet minimal endpoints we need."""
-import requests
 import time
 import statistics
 import asyncio
@@ -19,17 +17,24 @@ class YaSpeedTest:
         "Sec-Fetch-Dest" : "empty",
         "sec-fetch-site" : "cross-site"
     }
-    URL_GET_PROBES = "/internet/api/v0/get-probes"
     
     def __init__(self):
-        self.session = requests.Session()
-        self.base_url = "https://yandex.ru".rstrip("/")
-        self.session.headers.update(self.DEFAULT_HEADERS)
-        self.probes:ProbesResponse = None
+        """
+        Initialize the Yandex Speedtest client.
+        """
+        self.base_url: str = "https://yandex.ru".rstrip("/")
+        self.headers: dict = self.DEFAULT_HEADERS.copy()
+        self.probes: ProbesResponse = None
+        self.mid: str = None
+        self.lid: str = None
+    
+    @classmethod
+    async def create(cls):
+        self = cls()
+        await self.__start_proccess()
+        return self
 
-        self.__start_proccess()
-
-    def __start_proccess(self) -> None:
+    async def __start_proccess(self) -> None:
         """
         Initialize the measurement process by fetching probes from the API.
 
@@ -44,17 +49,28 @@ class YaSpeedTest:
             4. Parses the JSON response into a `ProbesResponse` object.
             5. Sets `self.mid` and `self.lid` based on the received probes.
         """
-        url = f"{self.base_url}{self.URL_GET_PROBES}"
-        r = self.session.get(url, timeout=10)
-        if not r.ok:
-            raise YandexAPIError(f"Proccess not started: {r.text}")
-        else:
-            for key, value in r.headers.items():
-                self.session.headers[key] = value
-            
-            self.probes:ProbesResponse = ProbesResponse.model_validate(r.json())
-            self.mid = self.probes.mid
-            self.lid = self.probes.lid
+        url = f"{self.base_url}/internet/api/v0/get-probes"
+        timeout_config = aiohttp.ClientTimeout(total=10)
+
+        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
+            try:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        raise YandexAPIError(f"Process not started: {text}")
+                    
+                    # Update headers with any returned headers
+                    for key, value in resp.headers.items():
+                        self.headers[key] = value
+
+                    # Parse response JSON into ProbesResponse
+                    data = await resp.json()
+                    self.probes = ProbesResponse.model_validate(data)
+                    self.mid = self.probes.mid
+                    self.lid = self.probes.lid
+
+            except Exception as e:
+                raise YandexAPIError(f"Failed to start process: {e}") from e
 
     async def measure_download(self, url: str, timeout: int = 10) -> Tuple[float, int]:
         """
