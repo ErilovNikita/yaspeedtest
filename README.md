@@ -1,9 +1,9 @@
 # yaspeedtest
 YaSpeedTest — это **асинхронный клиент Python**, который точно измеряет скорость интернета, используя те же общедоступные конечные точки, что и официальный [Yandex Internet Speed ​​Test](https://yandex.ru/internet).
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![PyPI Version](https://img.shields.io/pypi/pyversions/yaspeedtest?logo=python&label=Python)](https://pypi.org/project/yaspeedtest)
+[![PyPI Version](https://img.shields.io/pypi/v/yaspeedtest?logo=pypi&label=Release)](https://pypi.org/project/yaspeedtest)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/yaspeedtest?logo=pypi&label=PyPI%20-%20Downloads)](https://pypi.org/project/yaspeedtest)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![🧪 Run Tests](https://github.com/ErilovNikita/yaspeedtest/actions/workflows/tests.yml/badge.svg)](https://github.com/ErilovNikita/yaspeedtest/actions/workflows/tests.yml)
 
 ![preview](https://github.com/ErilovNikita/yaspeedtest/blob/main/docs/preview.png?raw=true)
