@@ -14,7 +14,7 @@ Documentation = "https://github.com/ErilovNikita/yaspeedtest/README.md"
 name = "yaspeedtest"
 license = { text = "Apache-2.0" }
 description = "Async client that allows you to measure internet speed based on Yandex Internetometer"
-version = "0.1.5"
+version = "0.1.6"
 readme = "pypi_docs.md"
 requires-python = ">=3.11"
 dependencies = [
