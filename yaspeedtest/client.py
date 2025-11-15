@@ -110,6 +110,7 @@ class YaSpeedTest:
             i += 1
 
         return min(peak_mbps, cap_mbps)
+    
     async def __start_proccess(self) -> None:
         """
         Initialize the measurement process by fetching probes from the API.
