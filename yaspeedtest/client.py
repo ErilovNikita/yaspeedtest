@@ -89,6 +89,9 @@ class YaSpeedTest:
         last_ts = arr[0][0]
         last_size = arr[0][1]
 
+        # IDE Dummy fix
+        last_size = last_size
+
         for ts, size in arr[1:]:
             dt = ts - last_ts
             if dt > 0:
