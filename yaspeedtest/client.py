@@ -39,9 +39,9 @@ class YaSpeedTest:
         self,
         samples: Deque[Tuple[float, int]],
         window: float = 1.0,
-        min_window: float = 0.03,
-        warmup_skip: float = 0.05,
-        cap_mbps: float = 200000.0,
+        min_window: float = 0.05,
+        warmup_skip: float = 0.15,
+        cap_mbps: float = 2500.0,
     ) -> float:
         """
         Calculates the actual peak throughput based on a sliding window with adaptive window duration selection.
@@ -71,12 +71,11 @@ class YaSpeedTest:
             Peak data transfer rate in megabits per second.
         """
 
-        if not samples:
-            return 0.0
-
+        # Normalize timestamps
         base_ts = samples[0][0]
         normalized = [(ts - base_ts, size) for ts, size in samples]
 
+        # Drop warmup
         normalized = [(ts, size) for ts, size in normalized if ts >= warmup_skip]
         if not normalized:
             return 0.0
@@ -84,32 +83,73 @@ class YaSpeedTest:
         arr = normalized
         n = len(arr)
 
-        peak_mbps = 0.0
+        # ===== Anti-artifact filter #1: remove impossible bursts =====
+        # If delta_t is tiny and bytes are large => burst
+        filtered = []
+        last_ts = arr[0][0]
+        last_size = arr[0][1]
 
+        for ts, size in arr[1:]:
+            dt = ts - last_ts
+            if dt > 0:
+                gbps = (size * 8) / dt / 1_000_000_000
+                if gbps < 5.0:  # >5 Gbps == suspicious
+                    filtered.append((ts, size))
+            last_ts, last_size = ts, size
+
+        if len(filtered) < 3:
+            filtered = arr  # fallback if overfiltered
+
+        arr = filtered
+        n = len(arr)
+
+        peak_candidates = []
+
+        # Sliding window
         i = 0
         j = 0
         total_bytes = 0
 
+        # Hard minimum window to avoid bursts
+        hard_min_window = 0.08  # 80 ms
+
         while i < n:
             start_ts = arr[i][0]
 
+            # expand window
             while j < n and arr[j][0] - start_ts <= window:
                 total_bytes += arr[j][1]
                 j += 1
 
+            # compute throughput for multiple subwindows
             for k in range(i + 1, j):
                 duration = arr[k][0] - start_ts
+
+                # apply minimum window constraints
+                if duration < hard_min_window:
+                    continue
                 if duration < min_window:
                     continue
 
                 mbps = (total_bytes * 8) / duration / 1_000_000
-                if mbps > peak_mbps:
-                    peak_mbps = mbps
+                peak_candidates.append(mbps)
 
             total_bytes -= arr[i][1]
             i += 1
 
-        return min(peak_mbps, cap_mbps)
+        if not peak_candidates:
+            return 0.0
+
+        # ===== Anti-artifact filter #2: trimmed peak =====
+        values = sorted(peak_candidates)
+        # drop top 10% spikes
+        cutoff = max(1, int(len(values) * 0.1))
+        trimmed = values[:-cutoff] if len(values) > 10 else values
+
+        peak = max(trimmed)
+
+        # ===== Anti-artifact filter #3: physical upper cap =====
+        return min(peak, cap_mbps)
     
     async def __start_proccess(self) -> None:
         """
