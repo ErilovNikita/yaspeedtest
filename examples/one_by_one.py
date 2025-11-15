@@ -28,18 +28,17 @@ Output
 ------
 Each probe prints its individual peak measurement:
 
-    Download probe run: 2
-    [Download] 768.41 Mbps
-    [Download] 942.67 Mbps
+    [Download] {URL}, timeout: {timeout}
+    [Download] {URL}, timeout: {timeout}
+    [Upload] {URL}, timeout: {timeout}, size: {size}
+    [Upload] {URL}, timeout: {timeout}, size: {size}
+    [Latency] {URL}
 
-    Latency probe run: 3 pcs
-    [Latency] 16.17 ms
-    [Latency] 15.82 ms
-    [Latency] 27.81 ms
-
-    Upload probe run: 2 pcs
-    [Upload] 324.61 Mbps
-    [Upload] 864.00 Mbps
+    [Download] 8.00 Mbps
+    [Download] 295.19 Mbps
+    [Upload] 0.00 Mbps
+    [Upload] 149.68 Mbps
+    [Latency] 16.55 ms
 
 Notes
 -----
@@ -57,8 +56,16 @@ async def main():
     yaSpeedTestClinet = await YaSpeedTest.create()
     probes:ProbesResponse = yaSpeedTestClinet.probes
 
+    # --- Probes ---
+    for probe in probes.download.probes:
+        print(f"[Download] {probe.url}, timeout: {probe.timeout}")
+    for probe in probes.upload.probes:
+        print(f"[Upload] {probe.url}, timeout: {probe.timeout}, size: {probe.size}")
+    for probe in probes.latency.probes:
+        print(f"[Latency] {probe.url}")
+    print()
+
     # --- Download ---
-    print(f'Download probe run: {len(probes.download.probes)} ')
     download_tasks = []
     for probe in probes.download.probes:
         async def download_task(p:ProbeModel=probe):
@@ -66,10 +73,17 @@ async def main():
             print(f"[Download] {mbps:.2f} Mbps")
         download_tasks.append(download_task())
     await asyncio.gather(*download_tasks)
-    print()
+
+    # --- Upload ---
+    upload_tasks = []
+    for probe in probes.upload.probes:
+        async def upload_task(p:ProbeModel=probe):
+            mbps = await yaSpeedTestClinet.measure_upload_peak(p.url, p.size, p.timeout)
+            print(f"[Upload] {mbps:.2f} Mbps")
+        upload_tasks.append(upload_task())
+    await asyncio.gather(*upload_tasks)
 
     # --- Latency ---
-    print(f'Latency probe run: {len(probes.latency.probes)} pcs')
     latency_tasks = []
     for probe in probes.latency.probes:
         async def latency_task(p:ProbeModel=probe):
@@ -78,16 +92,6 @@ async def main():
         latency_tasks.append(latency_task())
     await asyncio.gather(*latency_tasks)
     print()
-
-    # --- Upload ---
-    print(f'Upload probe run: {len(probes.upload.probes)} pcs')
-    upload_tasks = []
-    for probe in probes.upload.probes:
-        async def upload_task(p:ProbeModel=probe):
-            mbps = await yaSpeedTestClinet.measure_upload_peak(p.url, p.size, p.timeout)
-            print(f"[Upload] {mbps:.2f} Mbps")
-        upload_tasks.append(upload_task())
-    await asyncio.gather(*upload_tasks)
 
 
 if __name__ == "__main__":
