@@ -36,8 +36,9 @@ async def run_single_test(ya: YaSpeedTest) -> SpeedResult:
             download_mbps=result.download_mbps,
             upload_mbps=result.upload_mbps,
         )
-    except Exception:
-        return SpeedResult(0.0, 0.0, 0.0)
+    except Exception as e:
+        print("Warning: run_single_test encountered an error:", str(e))
+        return SpeedResult(ping_ms=0.0, download_mbps=0.0, upload_mbps=0.0)
 
 
 @pytest.mark.asyncio

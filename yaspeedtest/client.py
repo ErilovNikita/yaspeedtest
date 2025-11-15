@@ -446,7 +446,7 @@ class YaSpeedTest:
                     await resp.read()
 
         except ClientConnectorError:
-            return 0.0
+            raise
         except asyncio.CancelledError:
             return 0.0
         except Exception:
