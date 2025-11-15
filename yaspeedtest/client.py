@@ -71,6 +71,9 @@ class YaSpeedTest:
             Peak data transfer rate in megabits per second.
         """
 
+        if not samples:
+            return 0.0
+
         # Normalize timestamps
         base_ts = samples[0][0]
         normalized = [(ts - base_ts, size) for ts, size in samples]
@@ -118,40 +121,27 @@ class YaSpeedTest:
 
         while i < n:
             start_ts = arr[i][0]
-
-            # expand window
+            total_bytes = 0
             while j < n and arr[j][0] - start_ts <= window:
                 total_bytes += arr[j][1]
                 j += 1
 
-            # compute throughput for multiple subwindows
             for k in range(i + 1, j):
                 duration = arr[k][0] - start_ts
-
-                # apply minimum window constraints
-                if duration < hard_min_window:
+                if duration < hard_min_window or duration < min_window:
                     continue
-                if duration < min_window:
-                    continue
-
                 mbps = (total_bytes * 8) / duration / 1_000_000
-                peak_candidates.append(mbps)
+                if mbps <= cap_mbps:
+                    peak_candidates.append(mbps)
 
-            total_bytes -= arr[i][1]
             i += 1
 
         if not peak_candidates:
             return 0.0
 
-        # ===== Anti-artifact filter #2: trimmed peak =====
-        values = sorted(peak_candidates)
-        # drop top 10% spikes
-        cutoff = max(1, int(len(values) * 0.1))
-        trimmed = values[:-cutoff] if len(values) > 10 else values
+        peak = max(peak_candidates)
 
-        peak = max(trimmed)
-
-        # ===== Anti-artifact filter #3: physical upper cap =====
+        # ===== Anti-artifact filter physical upper cap =====
         return min(peak, cap_mbps)
     
     async def __start_proccess(self) -> None:
