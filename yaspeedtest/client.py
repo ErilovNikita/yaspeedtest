@@ -4,6 +4,7 @@ import asyncio
 import aiohttp
 from typing import Tuple, Deque
 from collections import deque
+from aiohttp.client_exceptions import ClientConnectorError
 
 from yaspeedtest.types import YandexAPIError, ProbesResponse, SpeedResult, ProbeModel
 
@@ -374,14 +375,21 @@ class YaSpeedTest:
         timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=60)
         samples: Deque[Tuple[float, int]] = deque(maxlen=200000)
 
-        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return 0.0
+        try:
+            async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        return 0.0
 
-                async for chunk in resp.content.iter_chunked(64 * 1024):
-                    now = time.perf_counter()
-                    samples.append((now, len(chunk)))
+                    async for chunk in resp.content.iter_chunked(64 * 1024):
+                        now = time.perf_counter()
+                        samples.append((now, len(chunk)))
+        except ClientConnectorError:
+            return 0.0
+        except asyncio.CancelledError:
+            return 0.0
+        except Exception:
+            return 0.0
 
         return self.__compute_peak_from_samples(samples)
 
@@ -430,11 +438,19 @@ class YaSpeedTest:
                 samples.append((now, tail))
                 yield b"\0" * tail
 
-        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
-            async with session.post(url, data=gen()) as resp:
-                if resp.status != 200:
-                    return 0.0
-                await resp.read()
+        try:
+            async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
+                async with session.post(url, data=gen()) as resp:
+                    if resp.status != 200:
+                        return 0.0
+                    await resp.read()
+
+        except ClientConnectorError:
+            return 0.0
+        except asyncio.CancelledError:
+            return 0.0
+        except Exception:
+            return 0.0
 
         return  self.__compute_peak_from_samples(samples)
 
