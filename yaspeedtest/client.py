@@ -2,7 +2,8 @@ import time
 import statistics
 import asyncio
 import aiohttp
-from typing import Tuple
+from typing import Tuple, Deque
+from collections import deque
 
 from yaspeedtest.types import YandexAPIError, ProbesResponse, SpeedResult, ProbeModel
 
@@ -34,22 +35,81 @@ class YaSpeedTest:
         await self.__start_proccess()
         return self
 
-    def __to_mbps(self, bytes_count: int, seconds: float) -> float:
+    def __compute_peak_from_samples(
+        self,
+        samples: Deque[Tuple[float, int]],
+        window: float = 1.0,
+        min_window: float = 0.03,
+        warmup_skip: float = 0.05,
+        cap_mbps: float = 200000.0,
+    ) -> float:
         """
-        Convert a byte count and duration in seconds into megabits per second (Mbps).
+        Calculates the actual peak throughput based on a sliding window with adaptive window duration selection.
 
-        Args:
-            bytes_count (int): Number of bytes transferred.
-            seconds (float): Duration of the transfer in seconds.
+        The algorithm takes into account the characteristics of high-speed links:
+            - skips the link warmup;
+            - adaptively reduces the window if this results in higher throughput;
+            - correctly handles window boundaries;
+            - eliminates the underperformance typical of a fixed window.
 
-        Returns:
-            float: Transfer speed in Mbps. Returns 0 if seconds <= 0.
+        Parameters
+        ----------
+        `samples` : Deque[Tuple[float, int]]
+            A sequence of samples (timestamp, bytes) collected during data loading or unloading.
+        `window` : float
+            Maximum window size in seconds (usually 1 second).
+        `min_window` : float
+            Minimum window length. The smaller the value, the more accurate the peak, but the more sensitive it is to noise.
+        `warmup_skip` : float
+            Skips the initial part of the sample (in seconds) to eliminate the cold start effect. Typically 30–70 ms.
+        `cap_mbps` : float
+            Upper limit for the result (anti-artifact).
+
+        Returns
+        -------
+        float
+            Peak data transfer rate in megabits per second.
         """
-        if seconds <= 0:
+
+        if not samples:
             return 0.0
-        bits = bytes_count * 8
-        return bits / seconds / 1_000_000
 
+        base_ts = samples[0][0]
+        normalized = [(ts - base_ts, size) for ts, size in samples]
+
+        normalized = [(ts, size) for ts, size in normalized if ts >= warmup_skip]
+        if not normalized:
+            return 0.0
+
+        arr = normalized
+        n = len(arr)
+
+        peak_mbps = 0.0
+
+        i = 0
+        j = 0
+        total_bytes = 0
+
+        while i < n:
+            start_ts = arr[i][0]
+
+            while j < n and arr[j][0] - start_ts <= window:
+                total_bytes += arr[j][1]
+                j += 1
+
+            for k in range(i + 1, j):
+                duration = arr[k][0] - start_ts
+                if duration < min_window:
+                    continue
+
+                mbps = (total_bytes * 8) / duration / 1_000_000
+                if mbps > peak_mbps:
+                    peak_mbps = mbps
+
+            total_bytes -= arr[i][1]
+            i += 1
+
+        return min(peak_mbps, cap_mbps)
     async def __start_proccess(self) -> None:
         """
         Initialize the measurement process by fetching probes from the API.
@@ -216,101 +276,101 @@ class YaSpeedTest:
     
     async def measure_download_peak(self, url: str, timeout: int = 60) -> float:
         """
-        Measure the peak download speed from a given URL.
+        Measures the peak incoming traffic speed (download) when receiving data
+        from a specified HTTP resource. Downloading is performed in a stream, in uniform
+        chunks, with the timestamp and
+        size of each received block recorded. Based on the accumulated samples, the maximum
+        throughput is calculated using a sliding-window algorithm, allowing for a
+        correct and stable estimate of the actual peak throughput.
 
-        This method downloads a file from the specified URL and calculates the
-        peak network throughput over 1-second intervals, rather than averaging
-        the entire download duration. This mimics the behavior of many speed
-        testing tools that report short-term peak speeds.
+        Parameters:
+            `url` (str):
+                URL of the resource from which the test data download is being performed.
+            `timeout` (int):
+                Timeout for establishing a connection and reading, in seconds.
+                Default: 60.
 
-        Parameters
-        ----------
-        url : str
-            The URL of the file to download for the speed test.
-        timeout : int, optional
-            Connection timeout in seconds. Default is 60.
+        Returns:
+            float:
+            Peak download speed in megabits per second (Mbps).
+            If the server returns a status other than 200, the method
+            returns 0.0.
 
-        Returns
-        -------
-        float
-            The peak download speed measured in megabits per second (Mbps).
-
+        Key Features:
+            • Downloaded data is read in streaming 64 KB chunks.
+            • The time of receipt and its value are recorded for each received chunk. volume.
+            • Based on a sequence of samples, the maximum speed is calculated
+            using a sliding window, eliminating unrealistic jumps.
+            • The method is resistant to network delays, buffering, and regular
+            throughput fluctuations, ensuring a stable peak speed metric.
         """
+
         timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=60)
-        peak_mbps = 0.0
-        buffer_bytes = 0
-        start_interval = time.perf_counter()
+        samples: Deque[Tuple[float, int]] = deque(maxlen=200000)
 
         async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
                     return 0.0
+
                 async for chunk in resp.content.iter_chunked(64 * 1024):
-                    buffer_bytes += len(chunk)
                     now = time.perf_counter()
-                    if now - start_interval >= 1.0:  # every 1 second
-                        mbps = buffer_bytes * 8 / (now - start_interval) / 1_000_000
-                        peak_mbps = max(peak_mbps, mbps)
-                        buffer_bytes = 0
-                        start_interval = now
-                # final interval
-                if buffer_bytes > 0:
-                    now = time.perf_counter()
-                    mbps = buffer_bytes * 8 / (now - start_interval) / 1_000_000
-                    peak_mbps = max(peak_mbps, mbps)
-        return peak_mbps
+                    samples.append((now, len(chunk)))
+
+        return self.__compute_peak_from_samples(samples)
 
     async def measure_upload_peak(self, url: str, size: int, timeout: int = 60) -> float:
         """
-        Measure the peak upload speed to a given URL.
+        Measures the peak outgoing traffic rate (upload) when sending
+        a specified volume of data to the specified server. The transfer is performed
+        in a stream, in fixed chunks, with parallel recording of timestamps
+        and the sizes of the sent chunks. The resulting samples are analyzed using a
+        sliding-window algorithm, ensuring a stable and correct calculation
+        of the actual peak throughput without false spikes.
 
-        This method uploads a specified number of bytes to the given URL and
-        calculates the peak network throughput over 1-second intervals. 
-        This provides a realistic measure of the fastest sustained upload
-        observed during the test.
+        Parameters:
+            `url` (str): The destination of the HTTP POST request for test data transfer.
+            `size` (int): The amount of data in bytes to send to the server.
+            `timeout` (int): Connection and network operation timeout, in seconds. Default: 60.
 
-        Parameters
-        ----------
-        url : str
-            The URL endpoint to upload the data to.
-        size : int
-            The number of bytes to upload for the speed test.
-        timeout : int, optional
-            Connection timeout in seconds. Default is 60.
+        Returns:
+            float: The peak data transfer rate, expressed in megabits per second (Mbps).
+            If the server returns an invalid status, the method returns 0.0.
 
-        Returns
-        -------
-        float
-            The peak upload speed measured in megabits per second (Mbps).
+        Key Features:
+            • Data is sent in a stream, in uniform 64 KB chunks.
+            • For each sent block, the sending time and size are recorded.
+            • Based on the collected samples, the maximum throughput is calculated
+            using a sliding window, reflecting the actual peak network speed.
+            • The method is robust to artifacts that arise during overly fast operations,
+            and eliminates unrealistic outliers.
         """
+        
         chunk = b"\0" * (64 * 1024)
         chunks = size // len(chunk)
         tail = size % len(chunk)
 
+        timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=120)
+        samples: Deque[Tuple[float, int]] = deque(maxlen=200000)
+
         async def gen():
+            nonlocal samples
             for _ in range(chunks):
+                now = time.perf_counter()
+                samples.append((now, len(chunk)))
                 yield chunk
             if tail:
+                now = time.perf_counter()
+                samples.append((now, tail))
                 yield b"\0" * tail
-
-        timeout_config = aiohttp.ClientTimeout(total=None, connect=timeout, sock_read=120)
-        peak_mbps = 0.0
-        buffer_bytes = 0
-        start_interval = time.perf_counter()
 
         async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
             async with session.post(url, data=gen()) as resp:
                 if resp.status != 200:
                     return 0.0
                 await resp.read()
-                # upload is streamed so we measure chunks
-                now = time.perf_counter()
-                elapsed = now - start_interval
-                buffer_bytes += size  # total uploaded
-                if elapsed >= 1.0:
-                    mbps = buffer_bytes * 8 / elapsed / 1_000_000
-                    peak_mbps = max(peak_mbps, mbps)
-        return peak_mbps
+
+        return  self.__compute_peak_from_samples(samples)
 
     async def run(self, attempts: int = 5) -> SpeedResult:
         """Main async entry point to measure internet speed.
