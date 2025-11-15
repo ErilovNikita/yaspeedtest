@@ -185,42 +185,6 @@ class YaSpeedTest:
         t1 = time.perf_counter()
         return t1 - t0, total_bytes
     
-    async def measure_latency(self, url: str, timeout: int = None, attempts: int = 5) -> float:
-        """
-        Measure the network latency (ping) to a given URL.
-
-        This method performs multiple HTTP GET requests to the target URL
-        and calculates the median round-trip time (RTT) in milliseconds.
-
-        Parameters:
-            url (str): The URL to ping.
-            attempts (int, optional): Number of GET requests to perform. Default is 5.
-
-        Returns:
-            float: The median ping in milliseconds. Returns a large value if all attempts fail.
-        """
-        times = []
-
-        if not timeout: 
-            timeout = 10
-
-        timeout_config = aiohttp.ClientTimeout(total=10, connect=timeout, sock_read=10)
-        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
-            for _ in range(attempts):
-                t0 = time.perf_counter()
-                try:
-                    async with session.get(url) as r:
-                        await r.read() 
-                        t1 = time.perf_counter()
-                        times.append((t1 - t0) * 1000)
-                except Exception:
-                    times.append(10000)
-                await asyncio.sleep(0.05)
-
-        if not times:
-            return float('inf')
-        return statistics.median(times)
-    
     # @deprecated("not stable enough, use measure_upload_peak instead")
     async def measure_upload(self, url: str, size: int, timeout: int = None) -> Tuple[float, int]:
         """
@@ -273,6 +237,42 @@ class YaSpeedTest:
                 return float('inf'), 0
         t1 = time.perf_counter()
         return t1 - t0, size
+    
+    async def measure_latency(self, url: str, timeout: int = None, attempts: int = 5) -> float:
+        """
+        Measure the network latency (ping) to a given URL.
+
+        This method performs multiple HTTP GET requests to the target URL
+        and calculates the median round-trip time (RTT) in milliseconds.
+
+        Parameters:
+            url (str): The URL to ping.
+            attempts (int, optional): Number of GET requests to perform. Default is 5.
+
+        Returns:
+            float: The median ping in milliseconds. Returns a large value if all attempts fail.
+        """
+        times = []
+
+        if not timeout: 
+            timeout = 10
+
+        timeout_config = aiohttp.ClientTimeout(total=10, connect=timeout, sock_read=10)
+        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
+            for _ in range(attempts):
+                t0 = time.perf_counter()
+                try:
+                    async with session.get(url) as r:
+                        await r.read() 
+                        t1 = time.perf_counter()
+                        times.append((t1 - t0) * 1000)
+                except Exception:
+                    times.append(10000)
+                await asyncio.sleep(0.05)
+
+        if not times:
+            return float('inf')
+        return statistics.median(times)
     
     async def measure_download_peak(self, url: str, timeout: int = 60) -> float:
         """
