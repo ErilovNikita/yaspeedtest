@@ -109,37 +109,26 @@ class YaSpeedTest:
         arr = filtered
         n = len(arr)
 
-        peak_candidates = []
-
         # Sliding window
+        peak = 0.0
         i = 0
         j = 0
         total_bytes = 0
 
-        # Hard minimum window to avoid bursts
-        hard_min_window = 0.08  # 80 ms
-
         while i < n:
             start_ts = arr[i][0]
-            total_bytes = 0
             while j < n and arr[j][0] - start_ts <= window:
                 total_bytes += arr[j][1]
                 j += 1
 
-            for k in range(i + 1, j):
-                duration = arr[k][0] - start_ts
-                if duration < hard_min_window or duration < min_window:
-                    continue
+            duration = arr[j - 1][0] - start_ts if j > i else window
+            if duration >= min_window:
                 mbps = (total_bytes * 8) / duration / 1_000_000
-                if mbps <= cap_mbps:
-                    peak_candidates.append(mbps)
+                if mbps < cap_mbps * 2:
+                    peak = max(peak, mbps)
 
+            total_bytes -= arr[i][1]
             i += 1
-
-        if not peak_candidates:
-            return 0.0
-
-        peak = max(peak_candidates)
 
         # ===== Anti-artifact filter physical upper cap =====
         return min(peak, cap_mbps)
