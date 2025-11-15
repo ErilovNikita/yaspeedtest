@@ -16,7 +16,7 @@ async def run_single_test(ya: YaSpeedTest) -> SpeedResult:
     the result in SpeedResult format. A built-in safe exception handling mechanism is enabled: any network errors, connection breaks, timeouts, or
     internal client exceptions do not cause the calling code to crash.
 
-    If successful, the actual values ​​are returned:
+    If successful, the actual values are returned:
     — ping_ms
     — download_mbps
     — upload_mbps
@@ -30,7 +30,7 @@ async def run_single_test(ya: YaSpeedTest) -> SpeedResult:
     """
 
     try:
-        result = await ya.run()
+        result = await ya.run(1)
         return SpeedResult(
             ping_ms=result.ping_ms,
             download_mbps=result.download_mbps,
