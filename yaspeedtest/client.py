@@ -321,7 +321,7 @@ class YaSpeedTest:
 
         timeout_config = aiohttp.ClientTimeout(
             total=30,
-            connect=timeout / 1000,
+            connect=timeout,
             sock_read=1
         )
 
