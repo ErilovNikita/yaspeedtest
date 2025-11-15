@@ -6,7 +6,7 @@ from typing import List
 from yaspeedtest.client import YaSpeedTest
 from yaspeedtest.types import SpeedResult
 
-NUM_TESTS = 1
+NUM_TESTS = 10
 
 async def run_single_test(ya: YaSpeedTest) -> SpeedResult:
     """
@@ -30,7 +30,8 @@ async def run_single_test(ya: YaSpeedTest) -> SpeedResult:
     """
 
     try:
-        result = await ya.run(1)
+        result = await ya.run()
+        print("Debug: run_single_test obtained result:", result)
         return SpeedResult(
             ping_ms=result.ping_ms,
             download_mbps=result.download_mbps,
