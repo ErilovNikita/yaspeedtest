@@ -4,8 +4,7 @@ from yaspeedtest.client import YaSpeedTest
 from yaspeedtest.types import ProbesResponse, ProbeModel, SpeedResult, ProbesList
 
 @pytest.mark.asyncio
-async def test_run_basic_flow():
-    ya_client = await YaSpeedTest.create()
+async def test_run_basic_flow(ya_client: YaSpeedTest):
 
     probe_download = ProbeModel(url="https://mock/download", timeout=1, size=1024*1024)
     probe_upload = ProbeModel(url="https://mock/upload", timeout=1, size=1024)
