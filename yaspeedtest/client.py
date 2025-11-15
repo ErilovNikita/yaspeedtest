@@ -238,40 +238,83 @@ class YaSpeedTest:
         t1 = time.perf_counter()
         return t1 - t0, size
     
-    async def measure_latency(self, url: str, timeout: int = None, attempts: int = 5) -> float:
+    async def measure_latency(
+        self,
+        url: str,
+        timeout: int = None,
+        attempts: int = 5,
+        warmup: int = 1
+    ) -> float:
         """
-        Measure the network latency (ping) to a given URL.
+        Measures the actual network RTT (ping) as the median of several HEAD requests.
 
-        This method performs multiple HTTP GET requests to the target URL
-        and calculates the median round-trip time (RTT) in milliseconds.
+        The method is configured to measure latency as accurately as possible:
+            - uses HEAD instead of GET (there's no time to read the payload);
+            - skips the first warmup measurements (eliminates the effect of a cold TCP/TLS start);
+            - uses trimmed median (tail trimming), eliminating outliers;
+            - disables SSL validation to avoid inflating ping due to certificate checks;
+            - uses the shortest possible timeouts.
 
-        Parameters:
-            url (str): The URL to ping.
-            attempts (int, optional): Number of GET requests to perform. Default is 5.
+        Parameters
+        ----------
+        `url` : str
+            URL to which a series of HEAD requests are made.
+        `timeout` : int, optional
+            Maximum connection time. Default is 10 ms.
+        `attempts` : int
+            Number of ping measurement attempts (recommended 5-8).
+        `warmup` : int
+            Number of first attempts to be discarded.
 
-        Returns:
-            float: The median ping in milliseconds. Returns a large value if all attempts fail.
+        Returns
+        -------
+        float
+            Median RTT in milliseconds. Returns a large number on errors.
         """
+
+        if timeout is None:
+            timeout = 10  # milliseconds
+
+        timeout_config = aiohttp.ClientTimeout(
+            total=5,
+            connect=timeout / 1000,
+            sock_read=1
+        )
+
         times = []
 
-        if not timeout: 
-            timeout = 10
+        connector = aiohttp.TCPConnector(ssl=False)
 
-        timeout_config = aiohttp.ClientTimeout(total=10, connect=timeout, sock_read=10)
-        async with aiohttp.ClientSession(headers=self.DEFAULT_HEADERS, timeout=timeout_config) as session:
-            for _ in range(attempts):
+        async with aiohttp.ClientSession(
+            headers=self.DEFAULT_HEADERS,
+            timeout=timeout_config,
+            connector=connector
+        ) as session:
+
+            for i in range(attempts + warmup):
                 t0 = time.perf_counter()
                 try:
-                    async with session.get(url) as r:
-                        await r.read() 
-                        t1 = time.perf_counter()
+                    async with session.head(url) as r:
+                        await r.release()
+                    t1 = time.perf_counter()
+
+                    if i >= warmup:
                         times.append((t1 - t0) * 1000)
                 except Exception:
-                    times.append(10000)
-                await asyncio.sleep(0.05)
+                    if i >= warmup:
+                        times.append(10_000)
+
+                await asyncio.sleep(0.02)
 
         if not times:
-            return float('inf')
+            return float("inf")
+
+        if len(times) >= 5:
+            times_sorted = sorted(times)
+            k = max(1, len(times_sorted) // 5)
+            times_trimmed = times_sorted[:-k]
+            return statistics.median(times_trimmed)
+
         return statistics.median(times)
     
     async def measure_download_peak(self, url: str, timeout: int = 60) -> float:
