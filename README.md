@@ -126,18 +126,18 @@ asyncio.run(main())
 | Метод | Описание |
 |-------|-------|
 | `run()` | Основной метод запуска теста скорости |
-| `measure_latency(url: str, timeout: int)` | *Измеряет пинг в миллисекундах* |
-| `measure_download(url: str, timeout: int)` | *Классическое измерение скорости загрузки* |
-| `measure_download_peak(url: str, timeout: int)` | *Измеряет пиковую скорость загрузки* |
-| `measure_upload(url: str, size: int, timeout: int)` | *Классическое измерение скорости отдачи* |
-| `measure_upload_peak(url: str, size: int, timeout: int)` | *Измеряет пиковую скорость отдачи* |
+| `measure_latency(`*`url: str, timeout: int`*`)` | Измеряет пинг в миллисекундах |
+| `measure_download(`*`url: str, timeout: int`*`)` | Классическое измерение скорости загрузки |
+| `measure_download_peak(`*`url: str, timeout: int`*`)` | Измеряет пиковую скорость загрузки |
+| `measure_upload(`*`url: str, size: int, timeout: int`*`)` | Классическое измерение скорости отдачи |
+| `measure_upload_peak(`*`url: str, size: int, timeout: int`*`)` | Измеряет пиковую скорость отдачи |
 
 ### Класс SpeedResult
 | Поле | Тип | Описание |
 |-------|----|-----|
-| **ping_ms** | float | *Средний пинг в миллисекундах* |
-| **download_mbps** | float | *Скорость загрузки в мегабитах в секунду* |
-| **upload_mbps** | float | *Скорость отдачи в мегабитах в секунду* |
+| **ping_ms** | float | Средний пинг в миллисекундах |
+| **download_mbps** | float | Скорость загрузки в мегабитах в секунду |
+| **upload_mbps** | float | Скорость отдачи в мегабитах в секунду |
 
 Пример результата SpeedResult:
 ```python
