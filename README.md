@@ -75,9 +75,9 @@ yaspeedtest --json
 Пример:
 ```python
 {
-  "ping_ms": 18.22,
-  "download_mbps": 935.44,
-  "upload_mbps": 512.91
+  "ping_ms": 1.22,
+  "download_mbps": 1935.44,
+  "upload_mbps": 1512.91
 }
 ```
 
@@ -98,8 +98,8 @@ async def main():
 asyncio.run(main())
 
 # Ping: 1.84 ms
-# Download: 939.17 Mbps
-# Upload: 870.29 Mbps
+# Download: 1939.17 Mbps
+# Upload: 1870.29 Mbps
 ```
 
 Больше примеров в папке [examples](/examples)
@@ -143,8 +143,8 @@ asyncio.run(main())
 ```python
 SpeedResult(
     ping_ms=1.37,
-    download_mbps=950.42,
-    upload_mbps=870.10
+    download_mbps=1950.42,
+    upload_mbps=1870.10
 )
 ```
 
