@@ -34,28 +34,6 @@ git clone https://github.com/ErilovNikita/yaspeedtest
 cd yaspeedtest
 ```
 
-## Пример использования
-```python
-import asyncio
-from yaspeedtest.client import YaSpeedTest
-
-async def main():
-    ya = await YaSpeedTest.create()
-    result = await ya.run()
-
-    print(f"Ping: {result.ping_ms:.2f} ms")
-    print(f"Download: {result.download_mbps:.2f} Mbps")
-    print(f"Upload: {result.upload_mbps:.2f} Mbps")
-
-asyncio.run(main())
-
-# Ping: 1.84 ms
-# Download: 939.17 Mbps
-# Upload: 870.29 Mbps
-```
-
-Больше примеров в папке [examples](/examples)
-
 ## CLI-режим
 
 Библиотека так же включает CLI, позволяющий запускать тесты скорости прямо из терминала, без написания кода.
@@ -102,6 +80,29 @@ yaspeedtest --json
   "upload_mbps": 512.91
 }
 ```
+
+
+## Прямой вызов из Python
+```python
+import asyncio
+from yaspeedtest.client import YaSpeedTest
+
+async def main():
+    ya = await YaSpeedTest.create()
+    result = await ya.run()
+
+    print(f"Ping: {result.ping_ms:.2f} ms")
+    print(f"Download: {result.download_mbps:.2f} Mbps")
+    print(f"Upload: {result.upload_mbps:.2f} Mbps")
+
+asyncio.run(main())
+
+# Ping: 1.84 ms
+# Download: 939.17 Mbps
+# Upload: 870.29 Mbps
+```
+
+Больше примеров в папке [examples](/examples)
 
 ## Режим пикового измерения скорости
 Методы `measure_download_peak()` и `measure_upload_peak()` фиксируют пиковую скорость передачи данных за секунду, а не усреднённое значение по всему файлу.
