@@ -1,5 +1,5 @@
 # yaspeedtest
-YaSpeedTest — это **асинхронный клиент Python**, который точно измеряет скорость интернета, используя те же общедоступные конечные точки, что и официальный [Yandex Internet Speed ​​Test](https://yandex.ru/internet).
+YaSpeedTest — это **асинхронный клиент Python**, который точно измеряет скорость интернета, используя те же общедоступные Endpoint'ы, что и официальный [Yandex Internet Speed ​​Test](https://yandex.ru/internet).
 
 [![PyPI Version](https://img.shields.io/pypi/v/yaspeedtest?logo=pypi&label=Release)](https://pypi.org/project/yaspeedtest)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/yaspeedtest?logo=pypi&label=PyPI%20-%20Downloads)](https://pypi.org/project/yaspeedtest)
