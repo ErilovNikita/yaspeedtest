@@ -5,21 +5,16 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 
-[project.urls]
-Homepage = "https://github.com/ErilovNikita/yaspeedtest"
-Repository = "https://github.com/ErilovNikita/yaspeedtest"
-Documentation = "https://github.com/ErilovNikita/yaspeedtest/README.md"
-
 [project]
 name = "yaspeedtest"
 license = { text = "Apache-2.0" }
 description = "Async client that allows you to measure internet speed based on Yandex Internetometer"
-version = "0.1.6"
+version = "0.1.7"
 readme = "pypi_docs.md"
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.28",
-    "aiohttp==3.12.15",
+    "aiohttp>=3.12.15",
     "asyncio==4.0.0",
     "pydantic>=2.11.9"
 ]
@@ -34,6 +29,14 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14"
 ]
+
+[project.urls]
+Homepage = "https://github.com/ErilovNikita/yaspeedtest"
+Repository = "https://github.com/ErilovNikita/yaspeedtest"
+Documentation = "https://github.com/ErilovNikita/yaspeedtest/README.md"
+
+[project.scripts]
+yaspeedtest = "yaspeedtest.cli:main"
 
 [project.optional-dependencies]
 dev = [
